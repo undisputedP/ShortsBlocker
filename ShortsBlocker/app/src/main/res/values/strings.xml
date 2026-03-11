@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">ShortsBlocker</string>
+    <string name="vpn_active">VPN Active</string>
+    <string name="vpn_inactive">VPN Inactive</string>
+    <string name="start_blocking">Start Blocking</string>
+    <string name="stop_blocking">Stop Blocking</string>
+    <string name="notification_title">ShortsBlocker Active</string>
+    <string name="notification_desc">Blocking distracting content</string>
+</resources>

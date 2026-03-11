@@ -1,0 +1,79 @@
+name: Build & Release APK
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:   # allows manual trigger from GitHub UI
+
+jobs:
+  build:
+    name: Build Signed APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: gradle
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+
+      - name: Build Release APK
+        run: ./gradlew assembleRelease
+
+      - name: Sign APK
+        uses: r0adkll/sign-android-release@v1
+        id: sign_apk
+        with:
+          releaseDirectory: app/build/outputs/apk/release
+          signingKeyBase64: ${{ secrets.SIGNING_KEY }}
+          alias: ${{ secrets.KEY_ALIAS }}
+          keyStorePassword: ${{ secrets.KEY_STORE_PASSWORD }}
+          keyPassword: ${{ secrets.KEY_PASSWORD }}
+        env:
+          BUILD_TOOLS_VERSION: "34.0.0"
+
+      - name: Rename APK
+        run: |
+          mv ${{ steps.sign_apk.outputs.signedReleaseFile }} \
+             app/build/outputs/apk/release/ShortsBlocker-${{ github.ref_name }}.apk
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          name: "ShortsBlocker ${{ github.ref_name }}"
+          draft: false
+          prerelease: false
+          files: app/build/outputs/apk/release/ShortsBlocker-*.apk
+          body: |
+            ## 🚫 ShortsBlocker ${{ github.ref_name }}
+
+            ### Install Instructions
+            1. Download `ShortsBlocker-${{ github.ref_name }}.apk` below
+            2. On your phone: **Settings → Security → Install unknown apps** → Allow your browser
+            3. Open the downloaded APK and install
+            4. Launch ShortsBlocker → tap **Start Blocking** → Accept VPN permission
+
+            ### What's blocked
+            - ▶️ YouTube Shorts
+            - 📸 Instagram Reels
+            - 👍 Facebook Reels
+            - 🎵 TikTok
+            - 👻 Snapchat Stories
+            - 🐦 Twitter/X Explore
+
+            ### Privacy
+            - ✅ 100% local VPN — zero data leaves your device
+            - ✅ No account, no tracking, no ads
+            - ✅ Open source (GPL-3.0)
+
+            **Source code:** https://github.com/${{ github.repository }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
