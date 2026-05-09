@@ -1,10 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+    No `android:packageNames` filter here on purpose: we filter in code by
+    "any package containing 'youtube'" so stock YouTube, Vanced, ReVanced
+    and the music app are all picked up. The OS-level filter would force
+    us to enumerate exact package names, and missing one means the user
+    silently gets nothing.
+-->
 <accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
-    android:accessibilityEventTypes="typeWindowStateChanged|typeWindowContentChanged"
+    android:accessibilityEventTypes="typeWindowStateChanged|typeWindowContentChanged|typeViewScrolled|typeViewSelected"
     android:accessibilityFeedbackType="feedbackGeneric"
-    android:accessibilityFlags="flagDefault"
+    android:accessibilityFlags="flagDefault|flagIncludeNotImportantViews"
     android:canRetrieveWindowContent="true"
     android:notificationTimeout="100"
-    android:packageNames="com.google.android.youtube"
     android:description="@string/accessibility_service_description"
     android:summary="@string/accessibility_service_summary" />

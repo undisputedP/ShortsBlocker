@@ -30,6 +30,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var llPlatforms: LinearLayout
     private lateinit var tvA11yStatus: TextView
     private lateinit var btnA11yEnable: Button
+    private lateinit var tvDebugInfo: TextView
+    private lateinit var btnDebugRefresh: Button
 
     private val vpnLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
@@ -78,6 +80,32 @@ class MainActivity : AppCompatActivity() {
         llPlatforms = findViewById(R.id.llPlatforms)
         tvA11yStatus = findViewById(R.id.tvA11yStatus)
         btnA11yEnable = findViewById(R.id.btnA11yEnable)
+        tvDebugInfo = findViewById(R.id.tvDebugInfo)
+        btnDebugRefresh = findViewById(R.id.btnDebugRefresh)
+        btnDebugRefresh.setOnClickListener { refreshDebugCard() }
+    }
+
+    private fun refreshDebugCard() {
+        val running = ShortsAccessibilityService.isRunning
+        val granted = isShortsAccessibilityEnabled()
+        val pkg = ShortsAccessibilityService.lastPackage
+        val evt = ShortsAccessibilityService.lastEventType
+        val ageMs = if (ShortsAccessibilityService.lastEventAtMs == 0L) -1L
+                    else System.currentTimeMillis() - ShortsAccessibilityService.lastEventAtMs
+        val ageStr = when {
+            ageMs < 0 -> "never"
+            ageMs < 1000 -> "${ageMs}ms ago"
+            ageMs < 60_000 -> "${ageMs / 1000}s ago"
+            else -> "${ageMs / 60_000}m ago"
+        }
+        val triggerEmoji = if (ShortsAccessibilityService.lastTriggered) "✅" else "❌"
+        tvDebugInfo.text = """
+            granted: $granted   running: $running
+            last pkg: $pkg
+            last evt: $evt ($ageStr)
+            ids=${ShortsAccessibilityService.lastIdHits}  cls=${ShortsAccessibilityService.lastClassHits}  shortsTxt=${ShortsAccessibilityService.lastShortsTextHits}  scroller=${ShortsAccessibilityService.lastSawScroller}
+            last triggered: $triggerEmoji   total: ${ShortsAccessibilityService.totalDismissals}
+        """.trimIndent()
     }
 
     private fun setupAccessibilityCard() {
@@ -248,6 +276,7 @@ class MainActivity : AppCompatActivity() {
         refreshStats()
         updateUI(BlockerVpnService.isActive)
         refreshAccessibilityCard()
+        refreshDebugCard()
     }
 
     override fun onDestroy() {
