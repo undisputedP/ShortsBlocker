@@ -23,16 +23,18 @@ jobs:
           cache: gradle
 
       - name: Grant execute permission for gradlew
+        working-directory: ShortsBlocker
         run: chmod +x gradlew
 
       - name: Build Release APK
+        working-directory: ShortsBlocker
         run: ./gradlew assembleRelease
 
       - name: Sign APK
         uses: r0adkll/sign-android-release@v1
         id: sign_apk
         with:
-          releaseDirectory: app/build/outputs/apk/release
+          releaseDirectory: ShortsBlocker/app/build/outputs/apk/release
           signingKeyBase64: ${{ secrets.SIGNING_KEY }}
           alias: ${{ secrets.KEY_ALIAS }}
           keyStorePassword: ${{ secrets.KEY_STORE_PASSWORD }}
@@ -43,7 +45,7 @@ jobs:
       - name: Rename APK
         run: |
           mv ${{ steps.sign_apk.outputs.signedReleaseFile }} \
-             app/build/outputs/apk/release/ShortsBlocker-${{ github.ref_name }}.apk
+             ShortsBlocker/app/build/outputs/apk/release/ShortsBlocker-${{ github.ref_name }}.apk
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v1
@@ -51,7 +53,7 @@ jobs:
           name: "ShortsBlocker ${{ github.ref_name }}"
           draft: false
           prerelease: false
-          files: app/build/outputs/apk/release/ShortsBlocker-*.apk
+          files: ShortsBlocker/app/build/outputs/apk/release/ShortsBlocker-*.apk
           body: |
             ## 🚫 ShortsBlocker ${{ github.ref_name }}
 

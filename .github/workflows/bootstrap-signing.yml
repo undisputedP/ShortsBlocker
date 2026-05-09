@@ -1,0 +1,118 @@
+name: Bootstrap signing (one-shot)
+
+# Generates a release keystore on a clean GitHub-hosted runner, sets the
+# four release secrets used by release.yml, and uploads the keystore as a
+# 1-day artifact for you to download and back up.
+#
+# Required pre-flight (set both as repo secrets before running):
+#   - BOOTSTRAP_PAT: a Personal Access Token with `repo` scope. Needed
+#     because the default GITHUB_TOKEN cannot manage repo secrets.
+#   - BOOTSTRAP_PASSWORD: the keystore password you want to use. Pick
+#     something strong and recoverable; you can never change it for this
+#     app on the Play Store.
+#
+# After a successful run:
+#   - Download the 'shortsblocker-release-keystore' artifact, back it up.
+#   - Delete BOOTSTRAP_PAT and BOOTSTRAP_PASSWORD secrets — both are now
+#     surplus and shouldn't linger.
+#   - Optionally delete this workflow file; it has no purpose post-bootstrap.
+
+on:
+  workflow_dispatch:
+    inputs:
+      key_alias:
+        description: 'Keystore alias (lowercase, no spaces)'
+        required: true
+        default: 'shortsblocker'
+        type: string
+      cert_cn:
+        description: 'Certificate Common Name (your name or org)'
+        required: true
+        default: 'ShortsBlocker'
+        type: string
+      cert_org:
+        description: 'Certificate Organization'
+        required: true
+        default: 'ShortsBlocker'
+        type: string
+      cert_country:
+        description: 'Two-letter ISO country code (e.g. IN, US, GB)'
+        required: true
+        default: 'IN'
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  bootstrap:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify required secrets are present
+        env:
+          BOOTSTRAP_PAT: ${{ secrets.BOOTSTRAP_PAT }}
+          BOOTSTRAP_PASSWORD: ${{ secrets.BOOTSTRAP_PASSWORD }}
+        run: |
+          missing=0
+          if [ -z "$BOOTSTRAP_PAT" ]; then
+            echo "::error::Missing repo secret BOOTSTRAP_PAT. Create a PAT with 'repo' scope at https://github.com/settings/tokens/new and save it as the BOOTSTRAP_PAT repo secret."
+            missing=1
+          fi
+          if [ -z "$BOOTSTRAP_PASSWORD" ]; then
+            echo "::error::Missing repo secret BOOTSTRAP_PASSWORD. Set it to the keystore password you want to use."
+            missing=1
+          fi
+          [ "$missing" -eq 0 ]
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Generate keystore
+        env:
+          BOOTSTRAP_PASSWORD: ${{ secrets.BOOTSTRAP_PASSWORD }}
+          KEY_ALIAS: ${{ inputs.key_alias }}
+          CERT_CN: ${{ inputs.cert_cn }}
+          CERT_ORG: ${{ inputs.cert_org }}
+          CERT_COUNTRY: ${{ inputs.cert_country }}
+        run: |
+          keytool -genkeypair \
+            -alias "$KEY_ALIAS" \
+            -keyalg RSA -keysize 4096 -validity 10000 \
+            -keystore release.jks -storetype PKCS12 \
+            -storepass "$BOOTSTRAP_PASSWORD" \
+            -keypass "$BOOTSTRAP_PASSWORD" \
+            -dname "CN=$CERT_CN, O=$CERT_ORG, C=$CERT_COUNTRY"
+          echo "::notice::Keystore generated. Fingerprint:"
+          keytool -list -v -keystore release.jks -storepass "$BOOTSTRAP_PASSWORD" -alias "$KEY_ALIAS" 2>/dev/null | grep -E "(SHA1:|SHA256:)" || true
+
+      - name: Set release secrets via PAT
+        env:
+          GH_TOKEN: ${{ secrets.BOOTSTRAP_PAT }}
+          BOOTSTRAP_PASSWORD: ${{ secrets.BOOTSTRAP_PASSWORD }}
+          KEY_ALIAS: ${{ inputs.key_alias }}
+        run: |
+          base64 -w 0 release.jks | gh secret set SIGNING_KEY -R "$GITHUB_REPOSITORY"
+          printf '%s' "$KEY_ALIAS"          | gh secret set KEY_ALIAS         -R "$GITHUB_REPOSITORY"
+          printf '%s' "$BOOTSTRAP_PASSWORD" | gh secret set KEY_STORE_PASSWORD -R "$GITHUB_REPOSITORY"
+          printf '%s' "$BOOTSTRAP_PASSWORD" | gh secret set KEY_PASSWORD       -R "$GITHUB_REPOSITORY"
+          echo "::notice::Set SIGNING_KEY, KEY_ALIAS, KEY_STORE_PASSWORD, KEY_PASSWORD on $GITHUB_REPOSITORY"
+
+      - name: Upload keystore for backup
+        uses: actions/upload-artifact@v4
+        with:
+          name: shortsblocker-release-keystore
+          path: release.jks
+          retention-days: 1
+
+      - name: Next steps
+        run: |
+          {
+            echo "## Done — next steps"
+            echo ""
+            echo "1. **Download** the \`shortsblocker-release-keystore\` artifact from this run page and store it somewhere durable (password manager, encrypted drive). If you lose this file you cannot ship updates under the same Play Store listing."
+            echo "2. **Delete** the temporary \`BOOTSTRAP_PAT\` and \`BOOTSTRAP_PASSWORD\` secrets — they have no purpose after this run."
+            echo "3. **Tag the release**: \`git tag v1.0.0 && git push origin v1.0.0\` — the existing \`release.yml\` workflow will then build, sign, and publish the APK."
+          } >> "$GITHUB_STEP_SUMMARY"

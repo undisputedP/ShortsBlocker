@@ -1,7 +1,7 @@
 # 🚫 ShortsBlocker
 
-[![Build & Release APK](https://github.com/YOUR_USERNAME/ShortsBlocker/actions/workflows/release.yml/badge.svg)](https://github.com/YOUR_USERNAME/ShortsBlocker/actions/workflows/release.yml)
-[![Download APK](https://img.shields.io/github/v/release/YOUR_USERNAME/ShortsBlocker?label=Download%20APK&logo=android&color=green)](https://github.com/YOUR_USERNAME/ShortsBlocker/releases/latest)
+[![Build & Release APK](https://github.com/undisputedP/ShortsBlocker/actions/workflows/release.yml/badge.svg)](https://github.com/undisputedP/ShortsBlocker/actions/workflows/release.yml)
+[![Download APK](https://img.shields.io/github/v/release/undisputedP/ShortsBlocker?label=Download%20APK&logo=android&color=green)](https://github.com/undisputedP/ShortsBlocker/releases/latest)
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 [![Platform](https://img.shields.io/badge/platform-Android%205.0%2B-brightgreen)](https://android.com)
 
@@ -12,7 +12,7 @@
 
 ## 📲 Install
 
-1. **[Download the latest APK](https://github.com/YOUR_USERNAME/ShortsBlocker/releases/latest)**
+1. **[Download the latest APK](https://github.com/undisputedP/ShortsBlocker/releases/latest)**
 2. On your phone: `Settings → Security → Install unknown apps` → allow your browser
 3. Open the downloaded APK → Install
 4. Launch **ShortsBlocker** → tap **▶ Start Blocking** → accept the VPN permission
@@ -58,7 +58,7 @@ ShortsBlocker creates a **local VPN tunnel** that intercepts DNS queries. When y
 
 ### Steps
 ```bash
-git clone https://github.com/YOUR_USERNAME/ShortsBlocker.git
+git clone https://github.com/undisputedP/ShortsBlocker.git
 cd ShortsBlocker
 
 # Open in Android Studio and click Run
@@ -90,8 +90,6 @@ Pull requests are welcome!
 4. Push: `git push origin feature/add-reddit-blocker`
 5. Open a Pull Request
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
-
 ---
 
 ## 📋 Blocked Domains
@@ -110,7 +108,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 ## 🔒 Privacy
 
 ShortsBlocker **never** collects or transmits any data.  
-[Full Privacy Policy](https://YOUR_USERNAME.github.io/ShortsBlocker/privacy-policy)
+[Full Privacy Policy](https://undisputedP.github.io/ShortsBlocker/privacy-policy)
 
 ---
 
@@ -125,4 +123,4 @@ GPL-3.0 © 2025 — see [LICENSE](LICENSE)
 ## ⭐ Support
 
 If this helped your focus — leave a ⭐ on GitHub!  
-Share with others: `https://github.com/YOUR_USERNAME/ShortsBlocker`
+Share with others: `https://github.com/undisputedP/ShortsBlocker`
