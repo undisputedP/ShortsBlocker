@@ -210,6 +210,55 @@
 
         </LinearLayout>
 
+        <!-- Debug card (read-only, helps users without ADB diagnose detection) -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:background="#15151F"
+            android:padding="20dp"
+            android:layout_marginBottom="14dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical">
+
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="Shorts detector debug"
+                    android:textSize="13sp"
+                    android:textAllCaps="true"
+                    android:letterSpacing="0.1"
+                    android:textColor="#7A7A8C"/>
+
+                <Button
+                    android:id="@+id/btnDebugRefresh"
+                    android:layout_width="wrap_content"
+                    android:layout_height="36dp"
+                    android:text="Refresh"
+                    android:textSize="12sp"
+                    android:textAllCaps="false"
+                    android:textColor="#FFFFFF"
+                    android:backgroundTint="#3A3A55"/>
+            </LinearLayout>
+
+            <TextView
+                android:id="@+id/tvDebugInfo"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="(open YouTube, swipe to a Short, then tap Refresh)"
+                android:textSize="12sp"
+                android:textColor="#9A9AAB"
+                android:fontFamily="monospace"
+                android:layout_marginTop="10dp"
+                android:lineSpacingMultiplier="1.4"/>
+
+        </LinearLayout>
+
         <!-- Footer -->
         <TextView
             android:layout_width="wrap_content"
