@@ -7,7 +7,4 @@
     <string name="stop_blocking">Stop Blocking</string>
     <string name="notification_title">ShortsBlocker Active</string>
     <string name="notification_desc">Blocking distracting content</string>
-
-    <string name="accessibility_service_description">Detects when the YouTube app is showing Shorts and dismisses them with a back press. The service only runs while the YouTube app is open. Required because DNS-based blocking cannot separate Shorts from regular YouTube videos — Shorts share the www.youtube.com hostname.</string>
-    <string name="accessibility_service_summary">Block YouTube Shorts</string>
 </resources>
