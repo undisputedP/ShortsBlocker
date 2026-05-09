@@ -1,21 +1,28 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-    Only `typeWindowStateChanged` is registered.
+    Both `typeWindowStateChanged` and `typeWindowContentChanged` are
+    registered.
 
-    YouTube fires `typeWindowContentChanged` at ~30 Hz during normal
-    scroll; even with a 250ms throttle in code, paying for the event
-    dispatch dropped the user-visible frame rate. State-changed events
-    fire only on real screen transitions (opening Shorts, switching
-    tabs, navigating to a video), which is exactly when we need to
-    re-evaluate whether the Shorts player is on screen. Steady-state
-    CPU during scroll drops to effectively zero.
+    State changes fire on real screen transitions (opening Shorts,
+    switching tabs, navigating to a video) — rare and always processed
+    in code.
+
+    Content changes fire at ~30 Hz inside YouTube during scroll. The
+    code handler short-circuits them (no tree walk) unless we recently
+    dismissed Shorts ("sticky" mode) — see ShortsAccessibilityService
+    for details. So during normal browsing the dispatch cost is just a
+    package-name check + a few comparisons; the expensive accessibility
+    tree walk only happens inside the sticky window. This is what
+    catches the user scrolling from one Short to the next inside the
+    player (a content change inside the same window, not a state
+    change), which v1.0.9 missed.
 
     No `android:packageNames` filter — we filter in code by "package
     name contains 'youtube'" so stock, Vanced, ReVanced, music app
     are all picked up.
 -->
 <accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
-    android:accessibilityEventTypes="typeWindowStateChanged"
+    android:accessibilityEventTypes="typeWindowStateChanged|typeWindowContentChanged"
     android:accessibilityFeedbackType="feedbackGeneric"
     android:accessibilityFlags="flagDefault|flagIncludeNotImportantViews"
     android:canRetrieveWindowContent="true"

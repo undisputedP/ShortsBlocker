@@ -15,55 +15,70 @@ import com.shortsBlocker.data.StatsManager
  * YouTube videos — both come from www.youtube.com, with the Shorts vs
  * video distinction in the URL path that DNS never sees.
  *
- * v1.0.7 detection rules. Each fires the dismissal on its own:
+ * v1.0.10 detection rules. Either fires the dismissal on its own:
  *
  *   1. STRONG view ID match: a node's view-ID suffix is in the curated
- *      STRONG_VIEW_ID_SUFFIXES list (the Shorts player container's known
- *      ids).
+ *      STRONG_VIEW_ID_SUFFIXES list. The list is restricted to ids that
+ *      only appear inside the full-screen player (every entry has
+ *      `player` or `pager` in its name). Earlier versions also matched
+ *      generic ids like `reel_recycler`, `shorts_container`, and
+ *      `watch_while_layout`, but those appear on the Shorts shelf
+ *      embedded in Subscriptions / "You" feeds and on regular video
+ *      pages, so they back-pressed those screens away.
  *
  *   2. STRICT class match: a single class name contains BOTH a Shorts
- *      keyword (`shorts` / `reel`) AND a player-container keyword
- *      (`player` / `pager` / `recycler` / `container`). This separates
- *      the active Shorts player (e.g. `ReelPlayerView`) from the
- *      bottom-nav Shorts tab button (`LegacyShortsTabIndicatorView`),
- *      which only carries the first keyword. v1.0.6's looser rule
- *      ("any class contains shorts") fired on the tab button and
- *      closed YouTube on launch.
+ *      keyword (`shorts` / `reel`) AND `player`. This separates the
+ *      full-screen Shorts player (e.g. `ReelPlayerView`) from the
+ *      bottom-nav Shorts tab button (`LegacyShortsTabIndicatorView`)
+ *      and from shelf items.
  *
- *   3. WEAK corroborated: 3+ "shorts" content-description / text hits
- *      AND a vertical pager / recycler in the tree.
+ * Loose counts (any view ID containing "shorts"/"reel"; any class
+ * containing "shorts" without a player keyword; 3+ "shorts" text hits +
+ * scroller) are still computed and surfaced in the in-app debug card,
+ * but no longer trigger on their own — they false-positived on the
+ * "Your Shorts" section of the You tab and similar shelves.
  *
- * Looser counts (any view ID containing "shorts"/"reel"; any class
- * containing "shorts" without a player keyword) are still computed and
- * surfaced in the in-app debug card, but no longer trigger on their
- * own — they were the source of v1.0.6's false positives.
+ * Event subscription: the service registers both window-state and
+ * window-content events, but content events are processed only inside
+ * a 5-second "sticky" window after each dismissal. State events fire
+ * on screen transitions (opening Shorts, switching tabs); they're rare
+ * and always processed. Content events fire at ~30 Hz inside YouTube
+ * during scroll — outside sticky mode the handler returns immediately
+ * (no tree walk) so frame rate is preserved. Inside sticky mode they
+ * are throttled to MIN_CONTENT_WALK_INTERVAL_MS so we still catch the
+ * scroll-to-next-Short case once the user is already in the player.
  */
 class ShortsAccessibilityService : AccessibilityService() {
 
     companion object {
         const val TAG = "ShortsA11y"
         private const val MIN_DISMISS_INTERVAL_MS = 600L
-        // Cap how often we walk the tree for content-changed events.
-        // YouTube fires TYPE_WINDOW_CONTENT_CHANGED at ~30 Hz during
-        // normal scrolling; without throttle we ate enough CPU to drop
-        // user-visible frame rate. State-changed events (entering Shorts,
-        // navigating screens) bypass this throttle so detection latency
-        // stays low when it matters.
+        // Throttle for tree walks during content-changed events. Only
+        // consulted inside the sticky window — outside sticky we don't
+        // walk on content events at all, see onAccessibilityEvent.
         private const val MIN_CONTENT_WALK_INTERVAL_MS = 250L
+        // After each dismissal, keep processing content-changed events
+        // for this long. Catches scroll-to-next-Short within the player
+        // (which is a content change inside the same window, not a
+        // state change). Outside this window content events are dropped
+        // immediately to keep YouTube's normal scroll smooth.
+        private const val STICKY_DURATION_MS = 5_000L
         private const val MAX_NODES_PER_WALK = 600
 
-        // STRONG view-ID suffixes (matches "<package>:id/<suffix>" exactly).
+        // STRONG view-ID suffixes (matches "<package>:id/<suffix>"
+        // exactly). All entries contain `player` or `pager` so they
+        // only match inside the full-screen Shorts player. Generic
+        // ids like `reel_recycler` / `shorts_container` /
+        // `watch_while_layout` were removed in v1.0.10 because they
+        // appear on Shorts shelves in Subscriptions / "You" feeds and
+        // on regular video pages, false-positiving those screens.
         private val STRONG_VIEW_ID_SUFFIXES = setOf(
-            "reel_recycler",
             "reel_player_page_container",
             "reel_player_underlay",
             "reel_player_underlay_view",
             "shorts_video_pager",
             "shorts_player",
-            "shorts_player_view",
-            "shorts_container_layout",
-            "shorts_container",
-            "watch_while_layout"
+            "shorts_player_view"
         )
 
         // Substrings that indicate Shorts content somewhere — used both for
@@ -83,8 +98,8 @@ class ShortsAccessibilityService : AccessibilityService() {
         // to "player" alone keeps shelves out of the trigger set.
         private val PLAYER_CONTAINER_FRAGMENTS = listOf("player")
 
-        // Vertical scroller class signatures, corroborates the weak
-        // "shorts text" rule.
+        // Vertical scroller class signatures. Used to populate the
+        // `sawScroller` debug counter; no longer feeds the trigger.
         private val SCROLLER_FRAGMENTS = listOf("viewpager2", "viewpager", "recyclerview")
 
         // ----- debug state visible to MainActivity ----------------------
@@ -105,6 +120,7 @@ class ShortsAccessibilityService : AccessibilityService() {
 
     private var lastDismissAt: Long = 0L
     private var lastWalkAt: Long = 0L
+    private var stickyUntilMs: Long = 0L
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         if (event == null) return
@@ -123,10 +139,17 @@ class ShortsAccessibilityService : AccessibilityService() {
         if (now - lastDismissAt < MIN_DISMISS_INTERVAL_MS) return
 
         // State changes (rare, fire on screen transitions like opening
-        // Shorts) always processed. Content changes (very frequent) get
-        // throttled so we don't burn CPU on every scroll tick.
+        // Shorts) are always processed. Content changes (very frequent
+        // during scroll) are dropped immediately unless we're inside
+        // the sticky window — i.e. we recently dismissed Shorts and
+        // want to keep watching for the user landing back on the
+        // player or scrolling to the next Short. Inside sticky we
+        // additionally throttle to MIN_CONTENT_WALK_INTERVAL_MS.
         val isStateChange = event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED
-        if (!isStateChange && now - lastWalkAt < MIN_CONTENT_WALK_INTERVAL_MS) return
+        if (!isStateChange) {
+            if (now >= stickyUntilMs) return
+            if (now - lastWalkAt < MIN_CONTENT_WALK_INTERVAL_MS) return
+        }
 
         lastWalkAt = now
 
@@ -141,6 +164,7 @@ class ShortsAccessibilityService : AccessibilityService() {
                         "scroller=$lastSawScroller")
                 performGlobalAction(GLOBAL_ACTION_BACK)
                 lastDismissAt = lastEventAtMs
+                stickyUntilMs = lastEventAtMs + STICKY_DURATION_MS
                 totalDismissals++
                 StatsManager.recordBlock("youtube-shorts", "YouTube Shorts")
             }
@@ -217,10 +241,11 @@ class ShortsAccessibilityService : AccessibilityService() {
         lastShortsTextHits = shortsTextHits
         lastSawScroller = sawScroller
 
-        // v1.0.7 trigger rule. Strict — does NOT fire on tab button alone.
-        return strongIdHits >= 1 ||
-                strictClassHits >= 1 ||
-                (shortsTextHits >= 3 && sawScroller)
+        // v1.0.10 trigger rule. The "shorts text + scroller" weak rule
+        // from v1.0.7 was dropped because the "Your Shorts" section of
+        // the You tab has 3+ Shorts thumbnails and lives inside a
+        // recycler, so it false-positived and back-pressed that tab.
+        return strongIdHits >= 1 || strictClassHits >= 1
     }
 
     override fun onInterrupt() { /* no-op */ }
