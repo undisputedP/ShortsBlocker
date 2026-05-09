@@ -1,16 +1,21 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-    No `android:packageNames` filter here on purpose: we filter in code by
-    "any package containing 'youtube'" so stock YouTube, Vanced, ReVanced
-    and the music app are all picked up.
+    Only `typeWindowStateChanged` is registered.
 
-    Event types intentionally limited to window-state and window-content
-    changes: typeViewScrolled / typeViewSelected fired on every minor UI
-    update inside YouTube and contributed to v1.0.6 firing back-presses
-    on the home screen.
+    YouTube fires `typeWindowContentChanged` at ~30 Hz during normal
+    scroll; even with a 250ms throttle in code, paying for the event
+    dispatch dropped the user-visible frame rate. State-changed events
+    fire only on real screen transitions (opening Shorts, switching
+    tabs, navigating to a video), which is exactly when we need to
+    re-evaluate whether the Shorts player is on screen. Steady-state
+    CPU during scroll drops to effectively zero.
+
+    No `android:packageNames` filter — we filter in code by "package
+    name contains 'youtube'" so stock, Vanced, ReVanced, music app
+    are all picked up.
 -->
 <accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
-    android:accessibilityEventTypes="typeWindowStateChanged|typeWindowContentChanged"
+    android:accessibilityEventTypes="typeWindowStateChanged"
     android:accessibilityFeedbackType="feedbackGeneric"
     android:accessibilityFlags="flagDefault|flagIncludeNotImportantViews"
     android:canRetrieveWindowContent="true"
