@@ -71,13 +71,17 @@ class ShortsAccessibilityService : AccessibilityService() {
         // counters surfaced in the debug card.
         private val SHORTS_FRAGMENTS = listOf("reel", "shorts")
 
-        // Player-container keywords. The strict class rule fires only when
-        // a class name contains a SHORTS_FRAGMENT *and* one of these in
-        // the same name — that distinguishes the player container from
-        // the tab button or other Shorts-aware UI on home screen.
-        private val PLAYER_CONTAINER_FRAGMENTS = listOf(
-            "player", "pager", "recycler", "container"
-        )
+        // Player keyword. The strict class rule fires only when a class
+        // name contains a SHORTS_FRAGMENT *and* this in the same name —
+        // narrows detection to the full-screen Shorts player, since
+        // every relevant YouTube class has "Player" in its name there.
+        //
+        // Earlier versions also matched "container" / "recycler" /
+        // "pager", but those words appear on the Shorts *shelf* embedded
+        // in the Subscriptions and "You" feeds, which caused those tabs
+        // to be back-pressed away as soon as they loaded. Restricting
+        // to "player" alone keeps shelves out of the trigger set.
+        private val PLAYER_CONTAINER_FRAGMENTS = listOf("player")
 
         // Vertical scroller class signatures, corroborates the weak
         // "shorts text" rule.
