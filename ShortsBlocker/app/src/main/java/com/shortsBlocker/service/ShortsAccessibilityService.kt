@@ -13,18 +13,30 @@ import com.shortsBlocker.data.StatsManager
  *
  * Why this exists: DNS-based blocking can't separate Shorts from regular
  * YouTube videos — both come from www.youtube.com, with the Shorts vs
- * video distinction in the URL path that DNS never sees. The only way to
- * block Shorts specifically is to inspect the app's UI tree.
+ * video distinction in the URL path that DNS never sees.
  *
- * Detection strategy: collect several independent signals in one tree
- * walk and trigger on any single signal. Compared to v1.0.5 this is
- * intentionally aggressive — false negatives (Shorts plays through)
- * are the bug we're fixing, and the package filter alone gives us
- * a reasonably tight scope (we only ever act inside YouTube's window).
+ * v1.0.7 detection rules. Each fires the dismissal on its own:
  *
- * Debug state is exposed via static fields the UI reads, so users
- * without ADB can still see whether the service is receiving events
- * and what its detectors saw.
+ *   1. STRONG view ID match: a node's view-ID suffix is in the curated
+ *      STRONG_VIEW_ID_SUFFIXES list (the Shorts player container's known
+ *      ids).
+ *
+ *   2. STRICT class match: a single class name contains BOTH a Shorts
+ *      keyword (`shorts` / `reel`) AND a player-container keyword
+ *      (`player` / `pager` / `recycler` / `container`). This separates
+ *      the active Shorts player (e.g. `ReelPlayerView`) from the
+ *      bottom-nav Shorts tab button (`LegacyShortsTabIndicatorView`),
+ *      which only carries the first keyword. v1.0.6's looser rule
+ *      ("any class contains shorts") fired on the tab button and
+ *      closed YouTube on launch.
+ *
+ *   3. WEAK corroborated: 3+ "shorts" content-description / text hits
+ *      AND a vertical pager / recycler in the tree.
+ *
+ * Looser counts (any view ID containing "shorts"/"reel"; any class
+ * containing "shorts" without a player keyword) are still computed and
+ * surfaced in the in-app debug card, but no longer trigger on their
+ * own — they were the source of v1.0.6's false positives.
  */
 class ShortsAccessibilityService : AccessibilityService() {
 
@@ -47,16 +59,21 @@ class ShortsAccessibilityService : AccessibilityService() {
             "watch_while_layout"
         )
 
-        // Substrings that, if present anywhere in a view ID's local part,
-        // strongly suggest the Shorts UI is up.
-        private val ID_FRAGMENTS = listOf("reel", "short")
+        // Substrings that indicate Shorts content somewhere — used both for
+        // the strict class rule and (for diagnostics only) the loose
+        // counters surfaced in the debug card.
+        private val SHORTS_FRAGMENTS = listOf("reel", "shorts")
 
-        // Class-name fragments. YouTube can rename internal classes but
-        // tends to keep "Reel" / "Shorts" in the package path because
-        // their own crash analytics still differentiate them.
-        private val CLASS_FRAGMENTS = listOf("reel", "shorts")
+        // Player-container keywords. The strict class rule fires only when
+        // a class name contains a SHORTS_FRAGMENT *and* one of these in
+        // the same name — that distinguishes the player container from
+        // the tab button or other Shorts-aware UI on home screen.
+        private val PLAYER_CONTAINER_FRAGMENTS = listOf(
+            "player", "pager", "recycler", "container"
+        )
 
-        // Vertical pagers / scrollers — a corroborating signal.
+        // Vertical scroller class signatures, corroborates the weak
+        // "shorts text" rule.
         private val SCROLLER_FRAGMENTS = listOf("viewpager2", "viewpager", "recyclerview")
 
         // ----- debug state visible to MainActivity ----------------------
@@ -65,8 +82,10 @@ class ShortsAccessibilityService : AccessibilityService() {
         @Volatile var lastPackage: String = "(none yet)"; private set
         @Volatile var lastEventType: String = "(none yet)"; private set
         @Volatile var lastEventAtMs: Long = 0L; private set
-        @Volatile var lastIdHits: Int = 0; private set
-        @Volatile var lastClassHits: Int = 0; private set
+        @Volatile var lastStrongIdHits: Int = 0; private set
+        @Volatile var lastStrictClassHits: Int = 0; private set
+        @Volatile var lastIdHits: Int = 0; private set        // loose, debug only
+        @Volatile var lastClassHits: Int = 0; private set     // loose, debug only
         @Volatile var lastShortsTextHits: Int = 0; private set
         @Volatile var lastSawScroller: Boolean = false; private set
         @Volatile var lastTriggered: Boolean = false; private set
@@ -79,7 +98,7 @@ class ShortsAccessibilityService : AccessibilityService() {
         if (event == null) return
 
         // Permissive package filter: any package whose name contains
-        // "youtube" — catches stock, Vanced, ReVanced, et al.
+        // "youtube" — catches stock, Vanced, ReVanced, etc.
         val pkg = event.packageName?.toString() ?: return
         if (!pkg.contains("youtube", ignoreCase = true)) return
 
@@ -95,7 +114,9 @@ class ShortsAccessibilityService : AccessibilityService() {
             lastTriggered = triggered
             if (triggered) {
                 Log.d(TAG, "trigger pkg=$pkg event=$lastEventType " +
-                        "ids=$lastIdHits cls=$lastClassHits shortsTxt=$lastShortsTextHits scroller=$lastSawScroller")
+                        "strongIds=$lastStrongIdHits strictCls=$lastStrictClassHits " +
+                        "ids=$lastIdHits cls=$lastClassHits shortsTxt=$lastShortsTextHits " +
+                        "scroller=$lastSawScroller")
                 performGlobalAction(GLOBAL_ACTION_BACK)
                 lastDismissAt = lastEventAtMs
                 totalDismissals++
@@ -109,8 +130,10 @@ class ShortsAccessibilityService : AccessibilityService() {
     }
 
     private fun isShortsVisible(root: AccessibilityNodeInfo): Boolean {
-        var idHits = 0
-        var classHits = 0
+        var strongIdHits = 0
+        var strictClassHits = 0
+        var looseIdHits = 0
+        var looseClassHits = 0
         var shortsTextHits = 0
         var sawScroller = false
 
@@ -121,48 +144,40 @@ class ShortsAccessibilityService : AccessibilityService() {
             val node = queue.removeFirst() ?: continue
             visited++
 
-            // View ID
+            // ---- View ID -------------------------------------------------
             val rawId = node.viewIdResourceName
             if (rawId != null) {
                 val suffix = rawId.substringAfter("/", missingDelimiterValue = rawId).lowercase()
                 if (suffix in STRONG_VIEW_ID_SUFFIXES) {
-                    idHits += 2
-                } else {
-                    for (frag in ID_FRAGMENTS) {
-                        if (suffix.contains(frag)) {
-                            idHits += 1
-                            break
-                        }
-                    }
+                    strongIdHits++
+                }
+                // Loose substring presence — debug only, no longer triggers.
+                if (SHORTS_FRAGMENTS.any { suffix.contains(it) }) {
+                    looseIdHits++
                 }
             }
 
-            // Class name
+            // ---- Class name ---------------------------------------------
             val cls = node.className?.toString()?.lowercase()
             if (cls != null) {
-                for (frag in CLASS_FRAGMENTS) {
-                    if (cls.contains(frag)) {
-                        classHits += 1
-                        break
-                    }
+                val hasShortsKw = SHORTS_FRAGMENTS.any { cls.contains(it) }
+                val hasPlayerKw = PLAYER_CONTAINER_FRAGMENTS.any { cls.contains(it) }
+                if (hasShortsKw && hasPlayerKw) {
+                    strictClassHits++
                 }
-                for (frag in SCROLLER_FRAGMENTS) {
-                    if (cls.endsWith(frag)) {
-                        sawScroller = true
-                        break
-                    }
+                if (hasShortsKw) {
+                    looseClassHits++
+                }
+                if (SCROLLER_FRAGMENTS.any { cls.endsWith(it) }) {
+                    sawScroller = true
                 }
             }
 
-            // Content description / text
+            // ---- Content description / text -----------------------------
             val cd = node.contentDescription?.toString()?.lowercase()
-            if (cd != null && cd.contains("shorts")) {
-                shortsTextHits += 1
-            }
+            if (cd != null && cd.contains("shorts")) shortsTextHits++
             val txt = node.text?.toString()?.lowercase()
-            if (txt != null && txt.contains("shorts")) {
-                shortsTextHits += 1
-            }
+            if (txt != null && txt.contains("shorts")) shortsTextHits++
 
             // Children
             val n = node.childCount
@@ -173,19 +188,17 @@ class ShortsAccessibilityService : AccessibilityService() {
         }
 
         // Cache for debug UI
-        lastIdHits = idHits
-        lastClassHits = classHits
+        lastStrongIdHits = strongIdHits
+        lastStrictClassHits = strictClassHits
+        lastIdHits = looseIdHits
+        lastClassHits = looseClassHits
         lastShortsTextHits = shortsTextHits
         lastSawScroller = sawScroller
 
-        // Aggressive trigger rule: any one of these
-        //   1) >= 1 idHit  (covers exact suffix match or any *reel/short* substring in IDs)
-        //   2) >= 1 classHit (any view in the tree with class containing "Reel"/"Shorts")
-        //   3) >= 2 shortsTextHits with a vertical scroller present
-        //      (avoids the bottom-nav "Shorts" tab triggering on the YT home page)
-        return idHits >= 1 ||
-                classHits >= 1 ||
-                (shortsTextHits >= 2 && sawScroller)
+        // v1.0.7 trigger rule. Strict — does NOT fire on tab button alone.
+        return strongIdHits >= 1 ||
+                strictClassHits >= 1 ||
+                (shortsTextHits >= 3 && sawScroller)
     }
 
     override fun onInterrupt() { /* no-op */ }

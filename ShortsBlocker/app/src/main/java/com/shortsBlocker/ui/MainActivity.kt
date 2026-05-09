@@ -103,7 +103,9 @@ class MainActivity : AppCompatActivity() {
             granted: $granted   running: $running
             last pkg: $pkg
             last evt: $evt ($ageStr)
-            ids=${ShortsAccessibilityService.lastIdHits}  cls=${ShortsAccessibilityService.lastClassHits}  shortsTxt=${ShortsAccessibilityService.lastShortsTextHits}  scroller=${ShortsAccessibilityService.lastSawScroller}
+            STRONG: ids=${ShortsAccessibilityService.lastStrongIdHits}  strictCls=${ShortsAccessibilityService.lastStrictClassHits}
+            loose:  ids=${ShortsAccessibilityService.lastIdHits}  cls=${ShortsAccessibilityService.lastClassHits}
+            shortsTxt=${ShortsAccessibilityService.lastShortsTextHits}  scroller=${ShortsAccessibilityService.lastSawScroller}
             last triggered: $triggerEmoji   total: ${ShortsAccessibilityService.totalDismissals}
         """.trimIndent()
     }

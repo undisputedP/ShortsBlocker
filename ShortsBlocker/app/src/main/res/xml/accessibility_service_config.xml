@@ -2,12 +2,15 @@
 <!--
     No `android:packageNames` filter here on purpose: we filter in code by
     "any package containing 'youtube'" so stock YouTube, Vanced, ReVanced
-    and the music app are all picked up. The OS-level filter would force
-    us to enumerate exact package names, and missing one means the user
-    silently gets nothing.
+    and the music app are all picked up.
+
+    Event types intentionally limited to window-state and window-content
+    changes: typeViewScrolled / typeViewSelected fired on every minor UI
+    update inside YouTube and contributed to v1.0.6 firing back-presses
+    on the home screen.
 -->
 <accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
-    android:accessibilityEventTypes="typeWindowStateChanged|typeWindowContentChanged|typeViewScrolled|typeViewSelected"
+    android:accessibilityEventTypes="typeWindowStateChanged|typeWindowContentChanged"
     android:accessibilityFeedbackType="feedbackGeneric"
     android:accessibilityFlags="flagDefault|flagIncludeNotImportantViews"
     android:canRetrieveWindowContent="true"
