@@ -9,6 +9,7 @@ import android.os.Bundle
 import android.widget.*
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
+import androidx.appcompat.widget.SwitchCompat
 import androidx.core.content.ContextCompat
 import com.shortsBlocker.R
 import com.shortsBlocker.data.StatsManager
@@ -85,7 +86,7 @@ class MainActivity : AppCompatActivity() {
                 layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
             }
 
-            val toggle = Switch(this).apply {
+            val toggle = SwitchCompat(this).apply {
                 isChecked = platform.isEnabled
                 setOnCheckedChangeListener { _, checked ->
                     platform.isEnabled = checked
@@ -167,11 +168,11 @@ class MainActivity : AppCompatActivity() {
     private fun updateUI(active: Boolean) {
         btnToggle.isEnabled = true
         if (active) {
-            btnToggle.text = "⏹ Stop Blocking"
+            btnToggle.text = "Stop Blocking"
             btnToggle.setBackgroundColor(getColor(android.R.color.holo_red_light))
             tvStatus.text = "🟢 Active — Blocking distractions"
         } else {
-            btnToggle.text = "▶ Start Blocking"
+            btnToggle.text = "Start Blocking"
             btnToggle.setBackgroundColor(getColor(android.R.color.holo_green_dark))
             tvStatus.text = "🔴 Inactive"
         }
