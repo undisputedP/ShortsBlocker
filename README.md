@@ -80,9 +80,15 @@ You open YouTube → AccessibilityService watches its UI tree →
   Shorts player detected? → performGlobalAction(GLOBAL_ACTION_BACK)
 ```
 
-The service is scoped to the YouTube package only (`com.google.android.youtube`) and reacts solely to window‑content events. It dismisses the Shorts player by issuing the OS‑level back action. The service has the technical *ability* to read on‑screen text — that's how Android's accessibility API works — but ShortsBlocker only checks whether specific YouTube view IDs are present and never logs, stores, or transmits anything it sees. The full source is in `service/ShortsAccessibilityService.kt`.
+The service is scoped to the YouTube package only (`com.google.android.youtube`) and reacts solely to window‑content events. It dismisses the Shorts player by issuing the OS‑level back action. The service has the technical *ability* to read on‑screen text — that's how Android's accessibility API works — but ShortsBlocker only checks for Shorts‑identifying patterns and never logs, stores, or transmits anything it sees. The full source is in [`ShortsAccessibilityService.kt`](ShortsBlocker/app/src/main/java/com/shortsBlocker/service/ShortsAccessibilityService.kt).
 
-Detection relies on YouTube's view IDs, which are obfuscated and change occasionally. If YouTube ships a major update that breaks detection, file an issue — fixing it is a one‑line list update.
+**Detection is multi‑signal to survive YouTube updates.** A single dismissal fires when any of these is true:
+
+1. A node carries a view ID that matches a known Shorts‑player suffix (`reel_recycler`, `shorts_video_pager`, …) **or** just contains the substring `reel` / `short`.
+2. Two or more nodes have class names containing `Reel` / `Shorts`. (Class names are obfuscation‑resistant because YouTube's own internal hierarchy still distinguishes Shorts views — flattening that breaks their crash reporting.)
+3. Three or more nodes have a content description containing `shorts` *and* the tree contains a vertical pager / recycler. This catches the case where every ID and class has been renamed but accessibility labels still say "Shorts".
+
+If a YouTube redesign eventually breaks all three, fix is a one‑line list update — see `STRONG_VIEW_ID_SUFFIXES` and `CLASS_NAME_FRAGMENTS` at the top of the service file. File an issue with your YouTube version + a `uiautomator dump` and we'll bump it.
 
 ---
 
