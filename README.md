@@ -18,13 +18,36 @@ If you've tried every focus app, screen‑time limit, and "digital wellbeing" fe
 1. Open the **[latest release](https://github.com/undisputedP/ShortsBlocker/releases/latest)** on your Android phone
 2. Download `ShortsBlocker-vX.Y.Z.apk`
 3. Allow your browser to install unknown apps when prompted (`Settings → Security → Install unknown apps`)
-4. Open the APK → Install
+4. Open the APK → Install. **If Play Protect blocks it, see [troubleshooting](#-play-protect-blocking-the-install) below.**
 5. Launch **ShortsBlocker** → tap **Start Blocking** → accept the VPN permission prompt
 6. *(Optional, for YouTube Shorts only)* Scroll to the **YouTube Shorts** card → tap **Enable in Settings** → enable ShortsBlocker under Android's Accessibility settings → return to the app
 
 The "VPN" permission is required because Android exposes per‑app traffic interception only via `VpnService`. ShortsBlocker isn't a real VPN — it doesn't tunnel your traffic anywhere. See *How it works* below.
 
 The Accessibility permission is only needed if you want YouTube Shorts blocking. The DNS engine works without it.
+
+### 🛡️ Play Protect blocking the install?
+
+Google Play Protect aggressively flags any sideloaded APK that combines `VpnService` and `AccessibilityService` — both of which ShortsBlocker legitimately needs. There's nothing we can do about this from the app side; Play Protect is doing user‑safety scanning by design. Try these in order:
+
+**Option A — "Install anyway" (works for most warnings).** When the dialog says "this app may be unsafe", tap **More details** (or the small arrow) → **Install anyway**.
+
+**Option B — Disable Play Protect temporarily.** If Option A doesn't surface an "Install anyway" path:
+1. Open **Google Play Store** → tap your profile icon (top right)
+2. **Play Protect** → gear icon (Settings)
+3. Toggle off **Scan apps with Play Protect**
+4. Install the APK
+5. Toggle it back on
+
+**Option C — ADB install (cleanest).** If you have USB debugging set up: `adb install ShortsBlocker-vX.Y.Z.apk`. This bypasses Play Protect entirely.
+
+**Option D — Obtainium.** Install [Obtainium](https://github.com/ImranR98/Obtainium) from the Play Store, then add `https://github.com/undisputedP/ShortsBlocker` as a source. It pulls APKs directly from GitHub releases and handles updates automatically. You still see Play Protect once on first install (use A or B), but updates after that are seamless.
+
+**Option E — F‑Droid (long term).** F‑Droid is a trusted FOSS app store. Submission to the main repo is in progress — once accepted, F‑Droid users will get ShortsBlocker without any Play Protect friction. For now you can self‑host an F‑Droid repo from this project's release tags using [`fdroid update`](https://f-droid.org/en/docs/Setup_an_F-Droid_App_Repo/).
+
+#### Why does Play Protect flag this?
+
+Two of the permissions ShortsBlocker requests — `BIND_VPN_SERVICE` (required to intercept DNS queries) and `BIND_ACCESSIBILITY_SERVICE` (required to dismiss YouTube Shorts since DNS can't see URL paths) — are also the same permissions a malicious app would need. Play Protect can't tell the difference between a legitimate use of these APIs and a malicious one, so it warns by default for unknown signers. Reading the source (~700 lines) is the actual mitigation; the permissions are doing exactly what's described in *How it works*.
 
 ---
 
