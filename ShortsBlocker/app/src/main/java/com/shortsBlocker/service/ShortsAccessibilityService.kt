@@ -43,7 +43,14 @@ class ShortsAccessibilityService : AccessibilityService() {
     companion object {
         const val TAG = "ShortsA11y"
         private const val MIN_DISMISS_INTERVAL_MS = 600L
-        private const val MAX_NODES_PER_WALK = 1200
+        // Cap how often we walk the tree for content-changed events.
+        // YouTube fires TYPE_WINDOW_CONTENT_CHANGED at ~30 Hz during
+        // normal scrolling; without throttle we ate enough CPU to drop
+        // user-visible frame rate. State-changed events (entering Shorts,
+        // navigating screens) bypass this throttle so detection latency
+        // stays low when it matters.
+        private const val MIN_CONTENT_WALK_INTERVAL_MS = 250L
+        private const val MAX_NODES_PER_WALK = 600
 
         // STRONG view-ID suffixes (matches "<package>:id/<suffix>" exactly).
         private val STRONG_VIEW_ID_SUFFIXES = setOf(
@@ -93,6 +100,7 @@ class ShortsAccessibilityService : AccessibilityService() {
     }
 
     private var lastDismissAt: Long = 0L
+    private var lastWalkAt: Long = 0L
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         if (event == null) return
@@ -102,11 +110,21 @@ class ShortsAccessibilityService : AccessibilityService() {
         val pkg = event.packageName?.toString() ?: return
         if (!pkg.contains("youtube", ignoreCase = true)) return
 
+        val now = System.currentTimeMillis()
         lastPackage = pkg
         lastEventType = AccessibilityEvent.eventTypeToString(event.eventType)
-        lastEventAtMs = System.currentTimeMillis()
+        lastEventAtMs = now
 
-        if (lastEventAtMs - lastDismissAt < MIN_DISMISS_INTERVAL_MS) return
+        // Recently dismissed → don't even consider another walk.
+        if (now - lastDismissAt < MIN_DISMISS_INTERVAL_MS) return
+
+        // State changes (rare, fire on screen transitions like opening
+        // Shorts) always processed. Content changes (very frequent) get
+        // throttled so we don't burn CPU on every scroll tick.
+        val isStateChange = event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED
+        if (!isStateChange && now - lastWalkAt < MIN_CONTENT_WALK_INTERVAL_MS) return
+
+        lastWalkAt = now
 
         val root = rootInActiveWindow ?: return
         try {
