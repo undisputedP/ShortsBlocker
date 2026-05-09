@@ -10,11 +10,12 @@ data class PlatformRule(
 object BlockingRules {
 
     val PLATFORMS = listOf(
-        // YouTube Shorts is intentionally NOT in this DNS platform list.
-        // Shorts and regular videos share the www.youtube.com hostname,
-        // so DNS can't distinguish them. ShortsBlocker handles YouTube
-        // Shorts via ShortsAccessibilityService instead — see the
-        // dedicated card in MainActivity.
+        // YouTube Shorts is intentionally NOT in this list. Shorts and
+        // regular videos share the www.youtube.com hostname, so DNS
+        // can't distinguish them. v1 shipped an accessibility-based
+        // dismisser; it proved too brittle across YouTube redesigns
+        // and was removed in v2.0. For YouTube Shorts, see the README
+        // recommendation (ReVanced has built-in toggles to hide them).
 
         PlatformRule(
             name = "Instagram Reels",

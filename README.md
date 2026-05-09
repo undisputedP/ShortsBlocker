@@ -1,15 +1,15 @@
-# 🚫 ShortsBlocker — block YouTube Shorts, Instagram Reels, TikTok, and other short‑form video on Android
+# 🚫 ShortsBlocker — block Instagram Reels, TikTok, Facebook Reels, Snap Stories, and X Explore on Android
 
 [![Build & Release APK](https://github.com/undisputedP/ShortsBlocker/actions/workflows/release.yml/badge.svg)](https://github.com/undisputedP/ShortsBlocker/actions/workflows/release.yml)
 [![Latest Release](https://img.shields.io/github/v/release/undisputedP/ShortsBlocker?label=latest&logo=android&color=2D2A5C)](https://github.com/undisputedP/ShortsBlocker/releases/latest)
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 [![Platform](https://img.shields.io/badge/platform-Android%205.0%2B-brightgreen)](https://android.com)
 
-**ShortsBlocker** is a free, open‑source Android app that blocks **YouTube Shorts**, **Instagram Reels**, **TikTok**, **Facebook Reels**, **Snapchat Stories**, and the **Twitter/X explore feed**. **No root required. No accounts. No data collection. No ads.** Install the APK and toggle it on.
+**ShortsBlocker** is a free, open‑source Android app that blocks **Instagram Reels**, **TikTok**, **Facebook Reels**, **Snapchat Stories**, and the **Twitter/X explore feed** at the network layer. **No root required. No accounts. No data collection. No ads.** Install the APK and toggle it on.
 
-If you've tried every focus app, screen‑time limit, and "digital wellbeing" feature and the algorithm still wins, this is the simplest hammer: cut off the network calls those feeds rely on (or, in the case of YouTube Shorts, dismiss the Shorts player as soon as it appears).
+If you've tried every focus app, screen‑time limit, and "digital wellbeing" feature and the algorithm still wins, this is the simplest hammer: cut off the network calls those feeds rely on so the apps just see "host not found".
 
-> ℹ️ **Two engines, one app.** Reels / TikTok / Snap / X live on their own hostnames, so the app blocks them with an on‑device DNS filter. YouTube Shorts share `www.youtube.com` with regular videos, so DNS can't tell them apart — for that the app uses an **Accessibility Service** that watches the YouTube app's UI and dismisses the Shorts player. Both can be enabled independently.
+> ℹ️ **Why no YouTube Shorts?** YouTube Shorts share `www.youtube.com` with regular YouTube videos, so on-device DNS can't tell them apart. v1 shipped an accessibility-based dismisser that watched YouTube's UI; after several iterations chasing YouTube's frequent UI changes the approach proved too brittle to ship reliably, and was **removed in v2.0**. For YouTube Shorts the recommended tool is a YouTube client like [ReVanced](https://revanced.app/) — its YouTube patches include built-in toggles to hide the Shorts shelf and Shorts navigation tab, which doesn't depend on detection at all.
 
 ---
 
@@ -20,11 +20,8 @@ If you've tried every focus app, screen‑time limit, and "digital wellbeing" fe
 3. Allow your browser to install unknown apps when prompted (`Settings → Security → Install unknown apps`)
 4. Open the APK → Install
 5. Launch **ShortsBlocker** → tap **Start Blocking** → accept the VPN permission prompt
-6. *(Optional, for YouTube Shorts only)* Scroll to the **YouTube Shorts** card → tap **Enable in Settings** → enable ShortsBlocker under Android's Accessibility settings → return to the app
 
 The "VPN" permission is required because Android exposes per‑app traffic interception only via `VpnService`. ShortsBlocker isn't a real VPN — it doesn't tunnel your traffic anywhere. See *How it works* below.
-
-The Accessibility permission is only needed if you want YouTube Shorts blocking. The DNS engine works without it.
 
 ---
 
@@ -41,12 +38,12 @@ The Accessibility permission is only needed if you want YouTube Shorts blocking.
 
 | Feature | Status | How |
 |---------|--------|-----|
-| YouTube Shorts blocking | ✅ experimental | Accessibility service |
 | Instagram Reels blocking | ✅ | DNS |
 | Facebook Reels blocking | ✅ | DNS |
 | TikTok blocking (full domain set) | ✅ | DNS |
 | Snapchat Stories blocking | ✅ | DNS |
 | Twitter/X Explore feed blocking | ✅ partial | DNS |
+| YouTube Shorts blocking | ❌ removed in v2.0 | use [ReVanced](https://revanced.app/) — see callout above |
 | Per‑platform toggle | ✅ | |
 | Daily / all‑time block counters | ✅ | |
 | Auto‑restart on phone reboot | ✅ | |
@@ -57,8 +54,6 @@ The Accessibility permission is only needed if you want YouTube Shorts blocking.
 ---
 
 ## 🏗️ How it works
-
-### Engine 1 — DNS filter (Reels, TikTok, Snap, X)
 
 ```
 Your apps → DNS Query → tunnel‑local resolver (10.99.0.2) →
@@ -71,25 +66,6 @@ ShortsBlocker creates a **narrow Android VPN** that only attracts traffic to a t
 
 This is fundamentally different from a typical VPN app: ShortsBlocker has no remote server, no tunnel, no shared infrastructure, and zero ability to exfiltrate your traffic even if it wanted to. The whole "VPN" surface is just Android's hook for letting an app see and answer DNS queries.
 
-### Engine 2 — Accessibility service (YouTube Shorts)
-
-YouTube Shorts share `www.youtube.com` with normal YouTube videos — DNS can't separate them. So a second, opt‑in mechanism handles Shorts:
-
-```
-You open YouTube → AccessibilityService watches its UI tree →
-  Shorts player detected? → performGlobalAction(GLOBAL_ACTION_BACK)
-```
-
-The service is scoped to the YouTube package only (`com.google.android.youtube`) and reacts solely to window‑content events. It dismisses the Shorts player by issuing the OS‑level back action. The service has the technical *ability* to read on‑screen text — that's how Android's accessibility API works — but ShortsBlocker only checks for Shorts‑identifying patterns and never logs, stores, or transmits anything it sees. The full source is in [`ShortsAccessibilityService.kt`](ShortsBlocker/app/src/main/java/com/shortsBlocker/service/ShortsAccessibilityService.kt).
-
-**Detection is multi‑signal to survive YouTube updates.** A single dismissal fires when any of these is true:
-
-1. A node carries a view ID that matches a known Shorts‑player suffix (`reel_recycler`, `shorts_video_pager`, …) **or** just contains the substring `reel` / `short`.
-2. Two or more nodes have class names containing `Reel` / `Shorts`. (Class names are obfuscation‑resistant because YouTube's own internal hierarchy still distinguishes Shorts views — flattening that breaks their crash reporting.)
-3. Three or more nodes have a content description containing `shorts` *and* the tree contains a vertical pager / recycler. This catches the case where every ID and class has been renamed but accessibility labels still say "Shorts".
-
-If a YouTube redesign eventually breaks all three, fix is a one‑line list update — see `STRONG_VIEW_ID_SUFFIXES` and `CLASS_NAME_FRAGMENTS` at the top of the service file. File an issue with your YouTube version + a `uiautomator dump` and we'll bump it.
-
 ---
 
 ## 📋 What's blocked
@@ -101,7 +77,6 @@ If a YouTube redesign eventually breaks all three, fix is a one‑line list upda
 | TikTok | DNS | `tiktok.com`, `*.tiktokv.com`, `analytics.tiktok.com` |
 | Snapchat | DNS | `ads.snapchat.com`, `sc-cdn.net`, `feelinsonice-hrd.appspot.com` |
 | Twitter/X | DNS | `api.twitter.com`, `abs.twimg.com` (Explore feed) |
-| YouTube Shorts | Accessibility | dismisses the Shorts player in `com.google.android.youtube` |
 
 You can also add custom hostnames at runtime — they're stored in `BlockingRules.customDomains` (in‑memory for now; persistence is on the roadmap).
 
@@ -113,13 +88,13 @@ You can also add custom hostnames at runtime — they're stored in `BlockingRule
 Yes. ShortsBlocker is a normal Android app that uses the `VpnService` API — works on any device running Android 5.0+ with no root, ADB tricks, or Magisk modules.
 
 **Does it slow down my phone?**
-No. Only DNS queries to one tunnel‑local IP go through the app. Non‑DNS traffic flows over your real network at full speed. The app itself uses ~50 MB RAM and negligible CPU. The accessibility service, if enabled, only runs while the YouTube app is foreground.
+No. Only DNS queries to one tunnel‑local IP go through the app. Non‑DNS traffic flows over your real network at full speed. The app itself uses ~50 MB RAM and negligible CPU.
 
 **Can I use it alongside another VPN?**
 Android only allows one `VpnService` at a time. If you start a different VPN, ShortsBlocker stops, and vice‑versa.
 
-**Why does the YouTube Shorts blocker need Accessibility permission?**
-Because DNS can't tell Shorts apart from regular YouTube videos. The only reliable way to block one and not the other is to inspect the YouTube app's on‑screen UI and dismiss the Shorts player when it appears, which Android exposes through the Accessibility API. The service is scoped to `com.google.android.youtube` only and never logs, stores, or transmits anything it sees — the source is in `ShortsAccessibilityService.kt` if you want to verify.
+**What about YouTube Shorts?**
+Not blocked by ShortsBlocker. YouTube Shorts share `www.youtube.com` with regular videos so DNS can't separate them, and v1's accessibility-based dismisser was too brittle across YouTube redesigns to ship reliably (see the callout near the top of this README). For Shorts, install [ReVanced](https://revanced.app/) and turn on its "Hide Shorts shelf" / "Hide Shorts navigation tab" patches — that's a UI removal rather than runtime detection, so it doesn't break when YouTube ships a new layout.
 
 **Will it block Instagram entirely / TikTok entirely?**
 Yes — the blocked hostnames are the API endpoints those apps depend on, so the apps fail to load any content. If you want to *use* Instagram for messaging while blocking Reels, this isn't the right tool (DNS can't see what kind of content the app is requesting). Use Instagram Web in a browser, or a third‑party client.
@@ -155,8 +130,8 @@ For a signed release build, see [`ShortsBlocker/scripts/setup-signing.sh`](Short
 ## 🚀 Cutting a release
 
 ```bash
-git tag v1.0.4
-git push origin v1.0.4
+git tag v2.0.1
+git push origin v2.0.1
 # GitHub Actions builds, signs, and publishes the APK to a Release.
 ```
 

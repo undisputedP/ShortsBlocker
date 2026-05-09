@@ -1,13 +1,11 @@
 package com.shortsBlocker.ui
 
 import android.content.BroadcastReceiver
-import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.net.VpnService
 import android.os.Bundle
-import android.provider.Settings
 import android.widget.*
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
@@ -17,7 +15,6 @@ import com.shortsBlocker.R
 import com.shortsBlocker.data.StatsManager
 import com.shortsBlocker.model.BlockingRules
 import com.shortsBlocker.service.BlockerVpnService
-import com.shortsBlocker.service.ShortsAccessibilityService
 
 class MainActivity : AppCompatActivity() {
 
@@ -28,10 +25,6 @@ class MainActivity : AppCompatActivity() {
     private lateinit var tvPlatformStats: TextView
     private lateinit var tvDomainCount: TextView
     private lateinit var llPlatforms: LinearLayout
-    private lateinit var tvA11yStatus: TextView
-    private lateinit var btnA11yEnable: Button
-    private lateinit var tvDebugInfo: TextView
-    private lateinit var btnDebugRefresh: Button
 
     private val vpnLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
@@ -60,7 +53,6 @@ class MainActivity : AppCompatActivity() {
         bindViews()
         setupPlatformToggles()
         setupToggleButton()
-        setupAccessibilityCard()
         updateUI(BlockerVpnService.isActive)
 
         registerReceiver(
@@ -78,73 +70,6 @@ class MainActivity : AppCompatActivity() {
         tvPlatformStats = findViewById(R.id.tvPlatformStats)
         tvDomainCount = findViewById(R.id.tvDomainCount)
         llPlatforms = findViewById(R.id.llPlatforms)
-        tvA11yStatus = findViewById(R.id.tvA11yStatus)
-        btnA11yEnable = findViewById(R.id.btnA11yEnable)
-        tvDebugInfo = findViewById(R.id.tvDebugInfo)
-        btnDebugRefresh = findViewById(R.id.btnDebugRefresh)
-        btnDebugRefresh.setOnClickListener { refreshDebugCard() }
-    }
-
-    private fun refreshDebugCard() {
-        val running = ShortsAccessibilityService.isRunning
-        val granted = isShortsAccessibilityEnabled()
-        val pkg = ShortsAccessibilityService.lastPackage
-        val evt = ShortsAccessibilityService.lastEventType
-        val ageMs = if (ShortsAccessibilityService.lastEventAtMs == 0L) -1L
-                    else System.currentTimeMillis() - ShortsAccessibilityService.lastEventAtMs
-        val ageStr = when {
-            ageMs < 0 -> "never"
-            ageMs < 1000 -> "${ageMs}ms ago"
-            ageMs < 60_000 -> "${ageMs / 1000}s ago"
-            else -> "${ageMs / 60_000}m ago"
-        }
-        val triggerEmoji = if (ShortsAccessibilityService.lastTriggered) "✅" else "❌"
-        tvDebugInfo.text = """
-            granted: $granted   running: $running
-            last pkg: $pkg
-            last evt: $evt ($ageStr)
-            STRONG: ids=${ShortsAccessibilityService.lastStrongIdHits}  strictCls=${ShortsAccessibilityService.lastStrictClassHits}
-            loose:  ids=${ShortsAccessibilityService.lastIdHits}  cls=${ShortsAccessibilityService.lastClassHits}
-            shortsTxt=${ShortsAccessibilityService.lastShortsTextHits}  scroller=${ShortsAccessibilityService.lastSawScroller}
-            last triggered: $triggerEmoji   total: ${ShortsAccessibilityService.totalDismissals}
-        """.trimIndent()
-    }
-
-    private fun setupAccessibilityCard() {
-        btnA11yEnable.setOnClickListener {
-            try {
-                startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
-            } catch (e: Exception) {
-                Toast.makeText(this, "Couldn't open Accessibility settings", Toast.LENGTH_SHORT).show()
-            }
-        }
-    }
-
-    /**
-     * Detect whether our ShortsAccessibilityService is currently enabled
-     * for this user. The OS exposes this via the secure setting
-     * ENABLED_ACCESSIBILITY_SERVICES, a colon-separated list of
-     * fully-qualified component names. We don't have permission to flip
-     * the bit ourselves — only the user can, in Settings — so we just
-     * read it and reflect the state in the UI.
-     */
-    private fun isShortsAccessibilityEnabled(): Boolean {
-        val expected = ComponentName(this, ShortsAccessibilityService::class.java).flattenToString()
-        val enabled = Settings.Secure.getString(
-            contentResolver,
-            Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
-        ) ?: return false
-        return enabled.split(":").any { it.equals(expected, ignoreCase = true) }
-    }
-
-    private fun refreshAccessibilityCard() {
-        if (isShortsAccessibilityEnabled()) {
-            tvA11yStatus.text = "🟢 Active — Shorts will be dismissed in YouTube"
-            btnA11yEnable.text = "Disable in Settings"
-        } else {
-            tvA11yStatus.text = "⚪ Not enabled — accessibility permission required"
-            btnA11yEnable.text = "Enable in Settings"
-        }
     }
 
     private fun setupPlatformToggles() {
@@ -277,8 +202,6 @@ class MainActivity : AppCompatActivity() {
         super.onResume()
         refreshStats()
         updateUI(BlockerVpnService.isActive)
-        refreshAccessibilityCard()
-        refreshDebugCard()
     }
 
     override fun onDestroy() {
