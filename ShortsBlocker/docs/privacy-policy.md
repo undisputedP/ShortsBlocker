@@ -29,7 +29,7 @@ The app stores a simple counter (number of blocked requests) in your device's **
 
 ## Open Source
 The complete source code is available at:
-`https://github.com/YOUR_USERNAME/ShortsBlocker`
+`https://github.com/undisputedP/ShortsBlocker`
 
 You can audit every line of code.
 

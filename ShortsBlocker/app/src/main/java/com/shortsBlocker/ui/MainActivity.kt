@@ -125,12 +125,16 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun startVpnService() {
+        getSharedPreferences("shortsBlocker_prefs", MODE_PRIVATE)
+            .edit().putBoolean("vpn_was_active", true).apply()
         val intent = Intent(this, BlockerVpnService::class.java)
             .setAction(BlockerVpnService.ACTION_START)
         ContextCompat.startForegroundService(this, intent)
     }
 
     private fun stopVpnService() {
+        getSharedPreferences("shortsBlocker_prefs", MODE_PRIVATE)
+            .edit().putBoolean("vpn_was_active", false).apply()
         val intent = Intent(this, BlockerVpnService::class.java)
             .setAction(BlockerVpnService.ACTION_STOP)
         startService(intent)
