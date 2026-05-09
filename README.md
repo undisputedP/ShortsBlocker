@@ -59,14 +59,14 @@ ShortsBlocker creates a **local VPN tunnel** that intercepts DNS queries. When y
 ### Steps
 ```bash
 git clone https://github.com/undisputedP/ShortsBlocker.git
-cd ShortsBlocker
+cd ShortsBlocker/ShortsBlocker   # the Android project lives in a subdirectory
 
 # Open in Android Studio and click Run
 # OR build via command line:
 ./gradlew assembleDebug
 ```
 
-APK will be at: `app/build/outputs/apk/debug/app-debug.apk`
+APK will be at: `ShortsBlocker/app/build/outputs/apk/debug/app-debug.apk` (relative to the repo root).
 
 ---
 
