@@ -29,9 +29,11 @@ class MainActivity : AppCompatActivity() {
         ActivityResultContracts.StartActivityForResult()
     ) { result ->
         if (result.resultCode == RESULT_OK) {
+            showPending("Starting…")
             startVpnService()
         } else {
             Toast.makeText(this, "VPN permission denied", Toast.LENGTH_SHORT).show()
+            updateUI(BlockerVpnService.isActive)
         }
     }
 
@@ -88,13 +90,10 @@ class MainActivity : AppCompatActivity() {
                 setOnCheckedChangeListener { _, checked ->
                     platform.isEnabled = checked
                     updateDomainCount()
-                    if (BlockerVpnService.isActive) {
-                        Toast.makeText(
-                            this@MainActivity,
-                            "Restart VPN to apply changes",
-                            Toast.LENGTH_SHORT
-                        ).show()
-                    }
+                    // No toast here — toggling a platform takes effect on the
+                    // next DNS query automatically. Spamming a toast on every
+                    // tap added perceived UI lag without informing the user
+                    // of anything actionable.
                 }
             }
 
@@ -108,6 +107,7 @@ class MainActivity : AppCompatActivity() {
     private fun setupToggleButton() {
         btnToggle.setOnClickListener {
             if (BlockerVpnService.isActive) {
+                showPending("Stopping…")
                 stopVpnService()
             } else {
                 requestVpnPermission()
@@ -118,10 +118,34 @@ class MainActivity : AppCompatActivity() {
     private fun requestVpnPermission() {
         val intent = VpnService.prepare(this)
         if (intent != null) {
+            // System will show a consent dialog; vpnLauncher handles the rest.
             vpnLauncher.launch(intent)
         } else {
+            // Already authorized — go straight to the optimistic state.
+            showPending("Starting…")
             startVpnService()
         }
+    }
+
+    /**
+     * Immediately reflect that a toggle action is in flight so the user gets
+     * visual feedback within a frame. The service round-trip
+     * (VpnService.Builder.establish() etc.) can take 500ms–1.5s on real
+     * devices; without this the button feels unresponsive.
+     *
+     * The receiver will snap us to the final state when the service
+     * broadcasts. If for any reason that never happens (failed establish,
+     * killed service), the safety post re-syncs from BlockerVpnService.isActive
+     * after 5s so the UI doesn't get stuck in the pending state.
+     */
+    private fun showPending(label: String) {
+        btnToggle.text = label
+        btnToggle.isEnabled = false
+        btnToggle.setBackgroundColor(getColor(android.R.color.darker_gray))
+        tvStatus.text = "🟡 $label"
+        btnToggle.postDelayed({
+            if (!btnToggle.isEnabled) updateUI(BlockerVpnService.isActive)
+        }, 5000)
     }
 
     private fun startVpnService() {
@@ -141,6 +165,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun updateUI(active: Boolean) {
+        btnToggle.isEnabled = true
         if (active) {
             btnToggle.text = "⏹ Stop Blocking"
             btnToggle.setBackgroundColor(getColor(android.R.color.holo_red_light))
