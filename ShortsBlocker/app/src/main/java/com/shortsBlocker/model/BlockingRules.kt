@@ -10,21 +10,12 @@ data class PlatformRule(
 object BlockingRules {
 
     val PLATFORMS = listOf(
-        PlatformRule(
-            // DNS-based blocking cannot actually block YouTube Shorts: they
-            // are served from www.youtube.com/shorts/* — same hostname as
-            // regular videos — and DNS only sees hostnames, not paths.
-            // Blocking www.youtube.com would kill all of YouTube. The two
-            // entries below are inert (those subdomains are not real
-            // endpoints) and exist only so the platform appears in the UI.
-            name = "YouTube Shorts (limited)",
-            emoji = "▶️",
-            domains = listOf(
-                "reel.youtube.com",
-                "shorts.youtube.com"
-            ),
-            isEnabled = false
-        ),
+        // YouTube Shorts is intentionally NOT in this DNS platform list.
+        // Shorts and regular videos share the www.youtube.com hostname,
+        // so DNS can't distinguish them. ShortsBlocker handles YouTube
+        // Shorts via ShortsAccessibilityService instead — see the
+        // dedicated card in MainActivity.
+
         PlatformRule(
             name = "Instagram Reels",
             emoji = "📸",
