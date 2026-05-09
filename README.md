@@ -5,8 +5,10 @@
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 [![Platform](https://img.shields.io/badge/platform-Android%205.0%2B-brightgreen)](https://android.com)
 
-> Block YouTube Shorts, Instagram Reels, TikTok, and Facebook Reels using a local DNS VPN.  
+> Block Instagram Reels, TikTok, Facebook Reels, Snapchat Stories, and the Twitter/X explore feed using a local DNS VPN.  
 > **No root required. No data leaves your device. Completely free and open source.**
+>
+> ⚠️ **Note on YouTube Shorts:** DNS-based blocking can't separate Shorts from regular YouTube — Shorts are served from `www.youtube.com/shorts/*`, the same hostname as normal videos, and DNS only sees hostnames. The "YouTube Shorts" platform toggle is shipped **disabled by default** and is effectively inert. Use a Shorts-specific tool (ReVanced, browser extensions) if you need that.
 
 ---
 
@@ -23,11 +25,12 @@
 
 | Feature | Status |
 |---------|--------|
-| YouTube Shorts blocking | ✅ |
 | Instagram Reels blocking | ✅ |
 | Facebook Reels blocking | ✅ |
 | TikTok blocking | ✅ |
 | Snapchat Stories blocking | ✅ |
+| Twitter/X Explore blocking | ✅ |
+| YouTube Shorts blocking | ⚠️ Not possible via DNS (see note above) |
 | Per-platform toggle | ✅ |
 | Daily block stats | ✅ |
 | Auto-start on boot | ✅ |
@@ -40,12 +43,13 @@
 ## 🏗️ How It Works
 
 ```
-Your App → DNS Query → Local VPN (ShortsBlocker) → 
+Your App → DNS Query → Local VPN (10.99.0.2) →
   ├── Blocked domain? → NXDOMAIN response (silently dropped)
-  └── Safe domain?    → Forward to real DNS (8.8.8.8)
+  └── Safe domain?    → Forwarded to upstream resolver (1.1.1.1 / 8.8.8.8)
+                        via a VpnService.protect()-ed socket
 ```
 
-ShortsBlocker creates a **local VPN tunnel** that intercepts DNS queries. When your device tries to reach a blocked domain, the app returns an NXDOMAIN response — making it appear the server doesn't exist. No packets are sent externally.
+ShortsBlocker creates a **narrow local VPN tunnel** that captures only DNS traffic to a tunnel-local address (`10.99.0.2`). Non-DNS traffic flows over your real network normally — the app is not a general-purpose VPN. Allowed DNS queries are forwarded to a public resolver via a socket that bypasses the VPN itself; blocked queries get an NXDOMAIN reply so the app trying to reach the host fails fast.
 
 ---
 
@@ -94,14 +98,14 @@ Pull requests are welcome!
 
 ## 📋 Blocked Domains
 
-| Platform | Domains |
-|----------|---------|
-| YouTube Shorts | `reel.youtube.com`, `shorts.youtube.com` |
-| Instagram Reels | `i.instagram.com`, `graph.instagram.com` |
-| Facebook Reels | `reels.facebook.com`, `graph.facebook.com` |
-| TikTok | `tiktok.com`, `*.tiktokv.com`, `analytics.tiktok.com` |
-| Snapchat | `ads.snapchat.com`, `sc-cdn.net` |
-| Twitter/X | `api.twitter.com` (Explore feed) |
+| Platform | Domains | Effective? |
+|----------|---------|------------|
+| Instagram Reels | `i.instagram.com`, `graph.instagram.com`, `edge-chat.instagram.com` | ✅ |
+| Facebook Reels | `reels.facebook.com`, `graph.facebook.com` | ✅ |
+| TikTok | `tiktok.com`, `*.tiktokv.com`, `analytics.tiktok.com` | ✅ |
+| Snapchat | `ads.snapchat.com`, `sc-cdn.net` | ✅ |
+| Twitter/X | `api.twitter.com`, `abs.twimg.com` | ✅ partial |
+| YouTube Shorts | `reel.youtube.com`, `shorts.youtube.com` | ⚠️ inert (real Shorts traffic uses `www.youtube.com`) |
 
 ---
 
